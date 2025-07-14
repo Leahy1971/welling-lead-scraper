@@ -1,102 +1,224 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 import gspread
 from google.oauth2 import service_account
 import csv
 import os
+from urllib.parse import quote_plus
+import requests
+from bs4 import BeautifulSoup
 from datetime import datetime
 import json
 import io
-import tempfile
 
 app = Flask(__name__)
 CORS(app)
 
-# Your Google Sheets credentials (FIXED VERSION)
-CREDENTIALS_JSON = {
-    "type": "service_account",
-    "project_id": "welling-lead-scraper",
-    "private_key_id": "0091301c5f547f2a76def77ae41ef7c8cb746b87",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQD11yu1BZQjx9Wr\nqbllCgOgYRkoZYE1dyV+E4azBT2BA7XUipZqhVtDlfA247jFjqRmg01IKgbDeTXL\nGtV0ibStQoeXw/CUhki+S3yuaYBG52qzaQTY7Y2nXakuuKNJ9WBpyVBLAh97PRkz\nX9KQgLfhO6sHd3rQb4WYiPeWVFh26kB6gKenjI8w6/cpeZ6Vkk/NYZwSU4FTkN5t\nj4LZ27hGs5XN7bEWIlnFLOpdxRWrdvtOQ/n3t2E5AUJLE0gUcSSXtGAyxK2oao3i\n2sH2T4c3H9aoFxpjYfX2yyCX8R7JVPzeRrKeXp2iNCqHrlESmvwnoSOdm4DNc63k\n5Wi11m4rAgMBAAECggEAJf6Ol2LjVZxUM5GplioJYXIK7KleDMtQlL75JGsnlEGP\nNT1YqIyFDFmnTx8RYXGoNYe5cUZoK9xsf0AIbq28VMK2010fA3VgLLjcmNVeqUFU\nG6JGyNf9+o3eezAMsdN7MR5B4IsqyRB/opGpU1fxaJ1LfiiYZzpf0AaVwpAKlBCr\n6g3koya4hdO8I5UwxhLIbXWIVYvLNhyq7bZ6DAr2AWV+HEh+3Qz3O/K43rnt7zUs\ngytLtz4BgfaxFavX8+8iKlp/wDp0MW0Oi4cBXBU7cPFRGlXrFMTvRxDy60ASE2gS\nLoVXOP6kXaDFP7grTM95EeaHp1KFbsfcJRGI5Wf/wQKBgQD+zb+qnlEt8DXU1MKE\nn/7N+3a21uI5BxI3VIAx3Xsqqrp5PttXjcumfkAwJp8QM23qHgPSCVS+H17QmJyl\nrhB5UkMIkcOQpfyu0KOxqsts3dT4P5BUuTPBkrfeQJyPEIQ/vIZHR6HVJESnZuxc\nMk+RRYJ4VWHVf9VHTD9I+pP2kQKBgQD2/qYprbyPJ6HhpQnkg2VXuRCk9Nadfn3I\nr9jyqf1Stb/M/92/yf10yp/Wb6A7zD1o7xSGsrXKAdq2iVfXol6PbnBC4pzP8PU+\ncYd/1JdxFmVsSv8cnAsFXOiHPDXyBTnO4GuAoOn5TJZasVgdFsAsWjgKFUzxczHq\nL+bCzCvO+wKBgEMoBUE50tmRuw5qOQ5tgOHXShWskxlGtNVibxs1bbX0I4u7NmJg\nG/G4ysAmHbxOYcTXvlgIX45whDPkVT0RoIPpW4ORr4KbTPriQJKeGlmKKgx37Fl4\nKpz1R4LLcrf+OWz3CkkVJyEfGv0oElnGZNQ8BsQidNOpipPtE6zvZjoRAoGATe9F\n8OrAD4+a1b8kovUO2iIr7VDQEzvhZpyN4OvgYeO1VHL7vlN25Q42ZwwrzBKC4gRm\nPqZPFCGHqIcnr4OtQKbBR2mHv1kxmPVrotsqueUuNYBohNd75sJNILbP8sDRX8SS\nRzD/Asm2u4Ev42XVV2lUO2JDOAB4JIPe1WJlBFcCgYAjyyc3AuxjrM0ItiRXjEr4\nWUenDdgw6naqaYwmXYqDU9NMaOJR0y/zxOwRrPwp0TmJ2Szp0iN0fSnSi5EsS/wf\nqNfe+NQmGAxAxJzEkaloMHVMfcliQxNMdvd3mmCu4V4XTHSdmtnJyEUoEo6yajYP\nHQZeFOIDzY0viuGabuM0kg==\n-----END PRIVATE KEY-----\n",
-    "client_email": "credentials-json-804@welling-lead-scraper.iam.gserviceaccount.com",
-    "client_id": "111924517280294017487",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/credentials-json-804%40welling-lead-scraper.iam.gserviceaccount.com",
-    "universe_domain": "googleapis.com"
-}
-
-GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1qScGInFI_UD_2K5oUn42ximUt1s-hR-H7iLcpfDTsw0/edit"
+# Configuration
+POSTCODES = [
+    "DA1", "DA2", "DA3", "DA4", "DA5", "DA6", "DA7", "DA8", "DA9", "DA10",
+    "DA11", "DA12", "DA13", "DA14", "DA15", "DA16", "DA17", "DA18"
+]
 
 def get_google_sheets_client():
-    """Initialize Google Sheets client with FIXED authentication"""
+    """Initialize Google Sheets client with environment variables"""
     try:
-        # Create temporary credentials file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump(CREDENTIALS_JSON, f)
-            creds_file = f.name
+        # Get credentials from environment variable
+        credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
+        if not credentials_json:
+            raise Exception("GOOGLE_CREDENTIALS environment variable not set")
         
-        # Use modern Google Auth
+        # Parse JSON credentials
+        credentials_dict = json.loads(credentials_json)
+        
+        # Create credentials object
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-        credentials = service_account.Credentials.from_service_account_file(creds_file, scopes=scopes)
+        credentials = service_account.Credentials.from_service_account_info(credentials_dict, scopes=scopes)
         client = gspread.authorize(credentials)
-        
-        # Clean up temp file
-        os.unlink(creds_file)
         
         return client
     except Exception as e:
         print(f"Google Sheets client error: {e}")
         raise
 
-# Mock data for testing (same as before)
-def generate_mock_data(keyword, location):
-    """Generate realistic mock data for testing"""
-    business_types = {
-        'garage': [
-            {'name': 'AutoFix Garage', 'phone': '020 8123 4567', 'website': 'https://autofix-garage.co.uk', 'email': 'info@autofix-garage.co.uk'},
-            {'name': 'Quick Car Repairs', 'phone': '020 8234 5678', 'website': 'https://quickcarrepairs.co.uk', 'email': 'service@quickcarrepairs.co.uk'},
-            {'name': 'Main Street Motors', 'phone': '020 8345 6789', 'website': 'https://mainstreetmotors.co.uk', 'email': 'contact@mainstreetmotors.co.uk'}
-        ],
-        'MOT': [
-            {'name': 'MOT Centre Plus', 'phone': '020 8456 7890', 'website': 'https://motcentreplus.co.uk', 'email': 'bookings@motcentreplus.co.uk'},
-            {'name': 'Test & Go MOT', 'phone': '020 8567 8901', 'website': 'https://testandgo.co.uk', 'email': 'info@testandgo.co.uk'},
-            {'name': 'Certified MOT Services', 'phone': '020 8678 9012', 'website': 'https://certifiedmot.co.uk', 'email': 'admin@certifiedmot.co.uk'}
-        ],
-        'tyres': [
-            {'name': 'Tyre Express', 'phone': '020 8789 0123', 'website': 'https://tyreexpress.co.uk', 'email': 'sales@tyreexpress.co.uk'},
-            {'name': 'Budget Tyres', 'phone': '020 8890 1234', 'website': 'https://budgettyres.co.uk', 'email': 'info@budgettyres.co.uk'},
-            {'name': 'Premium Tyre Centre', 'phone': '020 8901 2345', 'website': 'https://premiumtyres.co.uk', 'email': 'enquiries@premiumtyres.co.uk'}
-        ],
-        'security': [
-            {'name': 'SecureGuard Services', 'phone': '020 8012 3456', 'website': 'https://secureguard.co.uk', 'email': 'security@secureguard.co.uk'},
-            {'name': 'Protection Plus Ltd', 'phone': '020 8123 4567', 'website': 'https://protectionplus.co.uk', 'email': 'info@protectionplus.co.uk'},
-            {'name': 'Safety First Security', 'phone': '020 8234 5678', 'website': 'https://safetyfirst.co.uk', 'email': 'contact@safetyfirst.co.uk'}
-        ],
-        'plumbing': [
-            {'name': 'Emergency Plumbers', 'phone': '020 8345 6789', 'website': 'https://emergencyplumbers.co.uk', 'email': 'urgent@emergencyplumbers.co.uk'},
-            {'name': 'Reliable Plumbing', 'phone': '020 8456 7890', 'website': 'https://reliableplumbing.co.uk', 'email': 'bookings@reliableplumbing.co.uk'},
-            {'name': 'Professional Pipe Works', 'phone': '020 8567 8901', 'website': 'https://pipeworks.co.uk', 'email': 'info@pipeworks.co.uk'}
-        ]
-    }
+def setup_chrome_driver():
+    """Setup Chrome driver for production deployment"""
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-plugins")
+    options.add_argument("--disable-images")
+    options.add_argument("--disable-web-security")
+    options.add_argument("--allow-running-insecure-content")
+    options.add_argument("--ignore-certificate-errors")
+    options.add_argument("--disable-logging")
+    options.add_argument("--silent")
     
-    businesses = business_types.get(keyword.lower(), [
-        {'name': f'General Business {keyword}', 'phone': '020 8999 0000', 'website': f'https://{keyword.lower()}.co.uk', 'email': f'info@{keyword.lower()}.co.uk'}
-    ])
-    
-    return [{
-        "name": f"{biz['name']} - {location}",
-        "location": location,
-        "address": f"{10 + i * 2} {keyword.title()} Street, {location}",
-        "link": f"https://www.google.com/maps/search/{biz['name'].replace(' ', '+')}+{location}",
-        "phone": biz['phone'],
-        "website": biz['website'],
-        "reviews": f"{round(3.5 + (i * 0.3), 1)}({15 + i * 5})",
-        "email": biz['email'],
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    } for i, biz in enumerate(businesses)]
+    try:
+        # For Railway deployment
+        driver = webdriver.Chrome(options=options)
+        return driver
+    except Exception as e:
+        print(f"Error setting up Chrome driver: {e}")
+        raise
+
+def scrape_google_maps(keyword, location):
+    """REAL Google Maps scraping function"""
+    try:
+        print(f"🔍 Starting real scrape for: {keyword} in {location}")
+        
+        driver = setup_chrome_driver()
+        search_url = f"https://www.google.com/maps/search/{quote_plus(keyword)}+in+{quote_plus(location)}"
+        print(f"📍 Searching: {search_url}")
+        
+        driver.get(search_url)
+        time.sleep(5)
+
+        # Scroll to load more results
+        try:
+            scrollable_div = driver.find_element(By.XPATH, '//div[@role="feed"]')
+            print("📜 Scrolling to load results...")
+            for i in range(8):  # Reduced for faster response
+                driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_div)
+                time.sleep(1.5)
+                print(f"   Scroll {i+1}/8 complete")
+        except Exception as e:
+            print(f"⚠️ Scrolling failed: {e}")
+
+        # Find business elements
+        business_elements = driver.find_elements(By.CSS_SELECTOR, 'a.hfpxzc')
+        print(f"🏢 Found {len(business_elements)} business elements")
+        
+        data = []
+        seen = set()
+
+        for idx, elem in enumerate(business_elements[:15]):  # Limit to 15 for speed
+            try:
+                name = elem.get_attribute("aria-label")
+                link = elem.get_attribute("href")
+                
+                if not name or not link or name in seen:
+                    continue
+                    
+                seen.add(name)
+                print(f"   Processing {idx+1}: {name}")
+
+                # Click on business
+                elem.click()
+                time.sleep(2.5)
+
+                # Initialize data
+                phone = website = reviews = email = address = ""
+
+                # Extract phone number
+                try:
+                    phone_elem = driver.find_element(By.XPATH, '//button[@data-tooltip="Copy phone number"]')
+                    phone = phone_elem.text
+                except:
+                    try:
+                        phone_elem = driver.find_element(By.XPATH, '//button[@data-item-id="phone"]')
+                        phone = phone_elem.text
+                    except:
+                        pass
+
+                # Extract website
+                try:
+                    website_elem = driver.find_element(By.XPATH, '//a[@data-tooltip="Open website"]')
+                    website = website_elem.get_attribute("href")
+                except:
+                    try:
+                        website_elem = driver.find_element(By.XPATH, '//a[@data-item-id="authority"]')
+                        website = website_elem.get_attribute("href")
+                    except:
+                        pass
+
+                # Extract reviews
+                try:
+                    reviews_elem = driver.find_element(By.CSS_SELECTOR, 'span[aria-label*=" reviews"]')
+                    reviews = reviews_elem.text
+                except:
+                    try:
+                        reviews_elem = driver.find_element(By.CSS_SELECTOR, 'div.F7nice span[aria-label]')
+                        reviews = reviews_elem.get_attribute("aria-label")
+                    except:
+                        pass
+
+                # Extract address
+                try:
+                    address_elem = driver.find_element(By.XPATH, '//button[@data-item-id="address"]')
+                    address = address_elem.text
+                except:
+                    try:
+                        address_elem = driver.find_element(By.CSS_SELECTOR, 'div[data-item-id="address"]')
+                        address = address_elem.text
+                    except:
+                        pass
+
+                # Extract email from website (if available)
+                if website and len(website) > 10:
+                    try:
+                        print(f"      🌐 Checking website for email: {website}")
+                        r = requests.get(website, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
+                        soup = BeautifulSoup(r.content, "html.parser")
+                        
+                        # Look for mailto links
+                        for a in soup.find_all('a', href=True):
+                            if 'mailto:' in a['href']:
+                                email = a['href'].replace('mailto:', '')
+                                break
+                        
+                        # Look for email patterns in text if no mailto found
+                        if not email:
+                            import re
+                            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+                            emails = re.findall(email_pattern, r.text)
+                            if emails:
+                                email = emails[0]
+                                
+                    except Exception as e:
+                        print(f"      ⚠️ Email extraction failed: {e}")
+                        pass
+
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                business_data = {
+                    "name": name,
+                    "location": location,
+                    "address": address,
+                    "link": link,
+                    "phone": phone,
+                    "website": website,
+                    "reviews": reviews,
+                    "email": email,
+                    "timestamp": timestamp
+                }
+                
+                data.append(business_data)
+                print(f"      ✅ Extracted: {name} | {phone} | {website}")
+
+            except Exception as e:
+                print(f"      ❌ Error processing business {idx+1}: {e}")
+                continue
+
+        driver.quit()
+        print(f"🎉 Scraping complete! Found {len(data)} businesses")
+        return data
+
+    except Exception as e:
+        print(f"❌ Scraping error: {e}")
+        if 'driver' in locals():
+            driver.quit()
+        return []
 
 @app.route('/')
 def serve_frontend():
@@ -105,7 +227,7 @@ def serve_frontend():
 
 @app.route('/api/scrape', methods=['POST'])
 def api_scrape():
-    """API endpoint for scraping (using mock data for testing)"""
+    """API endpoint for REAL Google Maps scraping"""
     try:
         data = request.get_json()
         keywords = data.get('keywords', '').split(',')
@@ -114,43 +236,46 @@ def api_scrape():
         if not keywords or not keywords[0].strip():
             return jsonify({"error": "Keywords are required"}), 400
         
-        print(f"🔍 Scraping for: {keywords} in {location}")
+        if location not in POSTCODES:
+            return jsonify({"error": "Invalid postcode"}), 400
         
-        # Simulate processing time
-        time.sleep(2)
+        print(f"🚀 Starting REAL scraping for: {keywords} in {location}")
         
         all_results = []
         for keyword in keywords:
             keyword = keyword.strip()
             if keyword:
-                print(f"   Processing: {keyword}")
-                results = generate_mock_data(keyword, location)
+                print(f"🔍 Processing keyword: {keyword}")
+                results = scrape_google_maps(keyword, location)
                 all_results.extend(results)
+                print(f"   Found {len(results)} results for {keyword}")
         
-        # Remove duplicates
-        seen_names = set()
+        # Remove duplicates based on business name and phone
+        seen_businesses = set()
         unique_results = []
         for result in all_results:
-            if result['name'] not in seen_names:
-                seen_names.add(result['name'])
+            # Create unique identifier using name and phone
+            identifier = f"{result['name'].lower()}_{result.get('phone', '')}"
+            if identifier not in seen_businesses:
+                seen_businesses.add(identifier)
                 unique_results.append(result)
         
-        print(f"✅ Found {len(unique_results)} unique businesses")
+        print(f"🎯 Final result: {len(unique_results)} unique businesses")
         
         return jsonify({
             "success": True,
             "data": unique_results,
             "count": len(unique_results),
-            "message": f"Found {len(unique_results)} businesses (TEST DATA)"
+            "message": f"Found {len(unique_results)} REAL businesses from Google Maps"
         })
         
     except Exception as e:
-        print(f"❌ Scraping error: {e}")
+        print(f"❌ API scraping error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/upload-crm', methods=['POST'])
 def api_upload_crm():
-    """Upload data to Google Sheets CRM - NOW WORKING!"""
+    """Upload data to Google Sheets CRM - FIXED AUTHENTICATION"""
     try:
         data = request.get_json()
         businesses = data.get('data', [])
@@ -160,9 +285,14 @@ def api_upload_crm():
         
         print(f"📊 Uploading {len(businesses)} businesses to CRM...")
         
+        # Get Google Sheet URL from environment
+        sheet_url = os.environ.get('GOOGLE_SHEET_URL')
+        if not sheet_url:
+            return jsonify({"error": "Google Sheet URL not configured"}), 500
+        
         # Connect to Google Sheets with FIXED authentication
         client = get_google_sheets_client()
-        sheet = client.open_by_url(GOOGLE_SHEET_URL).worksheet("CRM")
+        sheet = client.open_by_url(sheet_url).worksheet("CRM")
         
         # Get existing data to avoid duplicates
         existing_data = sheet.get_all_values()
@@ -195,11 +325,11 @@ def api_upload_crm():
         
         print(f"📝 Uploading {len(new_businesses)} new entries...")
         
-        # Upload new data
+        # Upload new data with rate limiting
         for i, row in enumerate(new_businesses):
             sheet.append_row(row)
             print(f"   ✅ Added: {row[0]}")
-            time.sleep(0.3)  # Rate limiting
+            time.sleep(0.5)  # Rate limiting to avoid API limits
         
         print(f"🎉 Successfully uploaded {len(new_businesses)} businesses!")
         
@@ -216,12 +346,17 @@ def api_upload_crm():
 
 @app.route('/api/crm-status', methods=['GET'])
 def api_crm_status():
-    """Get CRM status - NOW WORKING!"""
+    """Get CRM status - FIXED AUTHENTICATION"""
     try:
         print("📊 Checking CRM status...")
         
+        # Get Google Sheet URL from environment
+        sheet_url = os.environ.get('GOOGLE_SHEET_URL')
+        if not sheet_url:
+            return jsonify({"error": "Google Sheet URL not configured"}), 500
+        
         client = get_google_sheets_client()
-        sheet = client.open_by_url(GOOGLE_SHEET_URL).worksheet("CRM")
+        sheet = client.open_by_url(sheet_url).worksheet("CRM")
         
         records = sheet.get_all_values()
         count = len(records) - 1 if len(records) > 1 else 0  # Subtract header
@@ -231,7 +366,7 @@ def api_crm_status():
         return jsonify({
             "success": True,
             "total_businesses": count,
-            "sheet_url": GOOGLE_SHEET_URL,
+            "sheet_url": sheet_url,
             "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
         
@@ -295,17 +430,20 @@ def health_check():
     return jsonify({
         "status": "healthy", 
         "timestamp": datetime.now().isoformat(),
-        "version": "fixed_v1.0",
-        "features": ["mock_scraping", "google_sheets_WORKING", "csv_export"]
+        "version": "production_v1.0",
+        "features": ["REAL_google_maps_scraping", "google_sheets_FIXED", "csv_export"],
+        "environment": "production"
     })
 
 if __name__ == '__main__':
-    print("🏆 Welling United FC Lead Scraper - FIXED VERSION")
+    print("🏆 Welling United FC Lead Scraper - PRODUCTION VERSION")
     print("=" * 60)
-    print("📍 Running on: http://localhost:5000")
-    print("🔧 Mock scraping: ACTIVE")
-    print("✅ Google Sheets: WORKING")
+    print("📍 Running on: Production Server")
+    print("🔥 Real Google Maps scraping: ACTIVE")
+    print("✅ Google Sheets: FIXED AUTH")
     print("📊 CRM Upload: WORKING")
     print("📈 Status Check: WORKING")
     print("=" * 60)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
