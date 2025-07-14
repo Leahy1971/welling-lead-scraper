@@ -236,7 +236,7 @@ def generate_realistic_local_businesses(keyword, location):
             "name": business_name,
             "location": location,
             "address": address,
-            "link": f"https://www.google.com/maps/search/{business_name.replace(' ', '+')}/{location}",
+            "link": f"https://www.google.com/maps/search/{business_name.replace(' ', '+').replace('-', '+')}/",
             "phone": phone,
             "website": website,
             "reviews": reviews,
