@@ -4,7 +4,8 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import time
 import gspread
 from google.oauth2 import service_account
@@ -16,6 +17,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import json
 import io
+import random
 
 app = Flask(__name__)
 CORS(app)
@@ -48,171 +50,268 @@ def get_google_sheets_client():
         raise
 
 def setup_chrome_driver():
-    """Setup Chrome driver for production deployment"""
+    """Setup Chrome driver with improved anti-detection for production deployment"""
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
+    
+    # Enhanced anti-detection measures
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    options.add_argument("--disable-web-security")
+    options.add_argument("--allow-running-insecure-content")
+    options.add_argument("--disable-features=VizDisplayCompositor")
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-plugins")
     options.add_argument("--disable-images")
-    options.add_argument("--disable-web-security")
-    options.add_argument("--allow-running-insecure-content")
-    options.add_argument("--ignore-certificate-errors")
-    options.add_argument("--disable-logging")
-    options.add_argument("--silent")
+    options.add_argument("--disable-javascript")
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-backgrounding-occluded-windows")
+    options.add_argument("--disable-renderer-backgrounding")
     
     try:
-        # For Railway deployment
         driver = webdriver.Chrome(options=options)
+        
+        # Execute scripts to hide automation indicators
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        driver.execute_script("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]})")
+        driver.execute_script("Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']})")
+        driver.execute_script("Object.defineProperty(navigator, 'permissions', {get: () => undefined})")
+        
         return driver
     except Exception as e:
         print(f"Error setting up Chrome driver: {e}")
         raise
 
 def scrape_google_maps(keyword, location):
-    """REAL Google Maps scraping function"""
+    """Improved Google Maps scraping with better detection avoidance and multiple strategies"""
     try:
-        print(f"🔍 Starting real scrape for: {keyword} in {location}")
+        print(f"🔍 Starting improved scrape for: {keyword} in {location}")
         
         driver = setup_chrome_driver()
-        search_url = f"https://www.google.com/maps/search/{quote_plus(keyword)}+in+{quote_plus(location)}"
-        print(f"📍 Searching: {search_url}")
+        businesses = []
         
-        driver.get(search_url)
-        time.sleep(5)
-
-        # Scroll to load more results
-        try:
-            scrollable_div = driver.find_element(By.XPATH, '//div[@role="feed"]')
-            print("📜 Scrolling to load results...")
-            for i in range(8):  # Reduced for faster response
-                driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_div)
-                time.sleep(1.5)
-                print(f"   Scroll {i+1}/8 complete")
-        except Exception as e:
-            print(f"⚠️ Scrolling failed: {e}")
-
-        # Find business elements
-        business_elements = driver.find_elements(By.CSS_SELECTOR, 'a.hfpxzc')
-        print(f"🏢 Found {len(business_elements)} business elements")
+        # Multiple URL strategies to try
+        url_strategies = [
+            f"https://www.google.com/maps/search/{quote_plus(keyword)}+{quote_plus(location)}+UK",
+            f"https://www.google.com/maps/search/{quote_plus(keyword + ' ' + location + ' UK')}",
+            f"https://www.google.com/maps/search/{quote_plus(keyword)}+near+{quote_plus(location)}",
+            f"https://www.google.com/maps/search/{quote_plus(keyword)}+in+{quote_plus(location)}+England"
+        ]
         
-        data = []
-        seen = set()
-
-        for idx, elem in enumerate(business_elements[:15]):  # Limit to 15 for speed
+        for strategy_num, search_url in enumerate(url_strategies):
             try:
-                name = elem.get_attribute("aria-label")
-                link = elem.get_attribute("href")
+                print(f"📍 Strategy {strategy_num + 1}: {search_url}")
+                driver.get(search_url)
                 
-                if not name or not link or name in seen:
+                # Random delay to appear more human
+                time.sleep(random.uniform(6, 10))
+                
+                # Check current URL and title for blocking
+                current_url = driver.current_url
+                page_title = driver.title.lower()
+                
+                if "sorry" in current_url.lower() or "blocked" in page_title or "captcha" in page_title:
+                    print(f"   ⚠️ Strategy {strategy_num + 1}: Detected blocking/captcha")
                     continue
-                    
-                seen.add(name)
-                print(f"   Processing {idx+1}: {name}")
-
-                # Click on business
-                elem.click()
-                time.sleep(2.5)
-
-                # Initialize data
-                phone = website = reviews = email = address = ""
-
-                # Extract phone number
-                try:
-                    phone_elem = driver.find_element(By.XPATH, '//button[@data-tooltip="Copy phone number"]')
-                    phone = phone_elem.text
-                except:
+                
+                # Multiple selector strategies
+                selector_strategies = [
+                    'a[href*="/maps/place/"]',  # Direct place links
+                    'a.hfpxzc',                 # Standard selector
+                    'div[data-result-index] a', # Result index links
+                    'div[role="article"] a',    # Article links
+                    'div.Nv2PK a'              # Alternative selector
+                ]
+                
+                elements = []
+                successful_selector = None
+                
+                for selector in selector_strategies:
                     try:
-                        phone_elem = driver.find_element(By.XPATH, '//button[@data-item-id="phone"]')
-                        phone = phone_elem.text
-                    except:
-                        pass
-
-                # Extract website
-                try:
-                    website_elem = driver.find_element(By.XPATH, '//a[@data-tooltip="Open website"]')
-                    website = website_elem.get_attribute("href")
-                except:
-                    try:
-                        website_elem = driver.find_element(By.XPATH, '//a[@data-item-id="authority"]')
-                        website = website_elem.get_attribute("href")
-                    except:
-                        pass
-
-                # Extract reviews
-                try:
-                    reviews_elem = driver.find_element(By.CSS_SELECTOR, 'span[aria-label*=" reviews"]')
-                    reviews = reviews_elem.text
-                except:
-                    try:
-                        reviews_elem = driver.find_element(By.CSS_SELECTOR, 'div.F7nice span[aria-label]')
-                        reviews = reviews_elem.get_attribute("aria-label")
-                    except:
-                        pass
-
-                # Extract address
-                try:
-                    address_elem = driver.find_element(By.XPATH, '//button[@data-item-id="address"]')
-                    address = address_elem.text
-                except:
-                    try:
-                        address_elem = driver.find_element(By.CSS_SELECTOR, 'div[data-item-id="address"]')
-                        address = address_elem.text
-                    except:
-                        pass
-
-                # Extract email from website (if available)
-                if website and len(website) > 10:
-                    try:
-                        print(f"      🌐 Checking website for email: {website}")
-                        r = requests.get(website, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
-                        soup = BeautifulSoup(r.content, "html.parser")
-                        
-                        # Look for mailto links
-                        for a in soup.find_all('a', href=True):
-                            if 'mailto:' in a['href']:
-                                email = a['href'].replace('mailto:', '')
-                                break
-                        
-                        # Look for email patterns in text if no mailto found
-                        if not email:
-                            import re
-                            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-                            emails = re.findall(email_pattern, r.text)
-                            if emails:
-                                email = emails[0]
-                                
+                        found_elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                        if found_elements:
+                            elements = found_elements
+                            successful_selector = selector
+                            print(f"   ✅ Found {len(elements)} elements with selector: {selector}")
+                            break
                     except Exception as e:
-                        print(f"      ⚠️ Email extraction failed: {e}")
-                        pass
-
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        print(f"   ❌ Selector '{selector}' failed: {e}")
+                        continue
                 
-                business_data = {
-                    "name": name,
-                    "location": location,
-                    "address": address,
-                    "link": link,
-                    "phone": phone,
-                    "website": website,
-                    "reviews": reviews,
-                    "email": email,
-                    "timestamp": timestamp
-                }
+                if not elements:
+                    print(f"   ⚠️ Strategy {strategy_num + 1}: No elements found")
+                    continue
                 
-                data.append(business_data)
-                print(f"      ✅ Extracted: {name} | {phone} | {website}")
-
+                # Try scrolling to load more results
+                try:
+                    scrollable_div = driver.find_element(By.XPATH, '//div[@role="feed"]')
+                    print(f"   📜 Scrolling to load more results...")
+                    for scroll in range(3):
+                        driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_div)
+                        time.sleep(random.uniform(1, 2))
+                    
+                    # Get elements again after scrolling
+                    elements = driver.find_elements(By.CSS_SELECTOR, successful_selector)
+                    print(f"   📜 After scrolling: {len(elements)} elements")
+                    
+                except Exception as e:
+                    print(f"   ⚠️ Scrolling failed: {e}")
+                
+                # Process elements
+                processed_count = 0
+                for i, elem in enumerate(elements[:15]):  # Limit to 15 for speed
+                    try:
+                        # Get basic info
+                        name = elem.get_attribute("aria-label")
+                        link = elem.get_attribute("href")
+                        
+                        if not name or not link:
+                            continue
+                            
+                        # Skip if not a place link
+                        if "place" not in link and "search" not in link:
+                            continue
+                            
+                        # Clean up name
+                        if name:
+                            # Remove common Google Maps artifacts
+                            name = name.replace("·", "").strip()
+                            if len(name) < 3:
+                                continue
+                        
+                        print(f"   🏢 Processing: {name}")
+                        
+                        # Initialize data
+                        phone = website = reviews = email = address = ""
+                        
+                        # Try to click and get details (with error handling)
+                        try:
+                            # Scroll element into view
+                            driver.execute_script("arguments[0].scrollIntoView(true);", elem)
+                            time.sleep(1)
+                            
+                            elem.click()
+                            time.sleep(random.uniform(2, 4))
+                            
+                            # Quick extraction with timeouts
+                            try:
+                                phone_elem = WebDriverWait(driver, 3).until(
+                                    EC.presence_of_element_located((By.XPATH, '//button[@data-tooltip="Copy phone number"]'))
+                                )
+                                phone = phone_elem.text
+                            except:
+                                try:
+                                    phone_elem = driver.find_element(By.XPATH, '//button[@data-item-id="phone"]')
+                                    phone = phone_elem.text
+                                except:
+                                    pass
+                            
+                            try:
+                                website_elem = WebDriverWait(driver, 2).until(
+                                    EC.presence_of_element_located((By.XPATH, '//a[@data-tooltip="Open website"]'))
+                                )
+                                website = website_elem.get_attribute("href")
+                            except:
+                                try:
+                                    website_elem = driver.find_element(By.XPATH, '//a[@data-item-id="authority"]')
+                                    website = website_elem.get_attribute("href")
+                                except:
+                                    pass
+                            
+                            try:
+                                reviews_elem = driver.find_element(By.CSS_SELECTOR, 'span[aria-label*=" reviews"]')
+                                reviews = reviews_elem.text
+                            except:
+                                pass
+                            
+                            try:
+                                address_elem = driver.find_element(By.XPATH, '//button[@data-item-id="address"]')
+                                address = address_elem.text
+                            except:
+                                pass
+                            
+                        except Exception as click_error:
+                            print(f"      ⚠️ Click failed: {click_error}")
+                            # Continue with basic info even if click fails
+                        
+                        # Extract email from website if available
+                        if website and len(website) > 10:
+                            try:
+                                print(f"      🌐 Checking website for email...")
+                                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                                r = requests.get(website, timeout=5, headers=headers)
+                                soup = BeautifulSoup(r.content, "html.parser")
+                                
+                                # Look for mailto links
+                                for a in soup.find_all('a', href=True):
+                                    if 'mailto:' in a['href']:
+                                        email = a['href'].replace('mailto:', '')
+                                        break
+                                
+                                # Look for email patterns if no mailto found
+                                if not email:
+                                    import re
+                                    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+                                    emails = re.findall(email_pattern, r.text)
+                                    if emails:
+                                        email = emails[0]
+                                        
+                            except Exception as e:
+                                print(f"      ⚠️ Email extraction failed: {e}")
+                        
+                        # Create business data
+                        business_data = {
+                            "name": name,
+                            "location": location,
+                            "address": address if address else f"{location} area",
+                            "link": link,
+                            "phone": phone,
+                            "website": website,
+                            "reviews": reviews,
+                            "email": email,
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                        
+                        businesses.append(business_data)
+                        processed_count += 1
+                        print(f"      ✅ Extracted: {name} | {phone} | {website}")
+                        
+                        # Add small delay between businesses
+                        time.sleep(random.uniform(0.5, 1.5))
+                        
+                    except Exception as e:
+                        print(f"      ❌ Error processing business {i+1}: {e}")
+                        continue
+                
+                print(f"   📊 Strategy {strategy_num + 1}: Processed {processed_count} businesses")
+                
+                # If we found businesses, break out of strategy loop
+                if businesses:
+                    break
+                    
             except Exception as e:
-                print(f"      ❌ Error processing business {idx+1}: {e}")
+                print(f"   ❌ Strategy {strategy_num + 1} failed: {e}")
                 continue
 
         driver.quit()
-        print(f"🎉 Scraping complete! Found {len(data)} businesses")
-        return data
+        
+        # Remove duplicates
+        seen_names = set()
+        unique_businesses = []
+        for business in businesses:
+            identifier = business['name'].lower().strip()
+            if identifier not in seen_names:
+                seen_names.add(identifier)
+                unique_businesses.append(business)
+        
+        print(f"🎉 Scraping complete! Found {len(unique_businesses)} unique businesses")
+        return unique_businesses
 
     except Exception as e:
         print(f"❌ Scraping error: {e}")
@@ -227,7 +326,7 @@ def serve_frontend():
 
 @app.route('/api/scrape', methods=['POST'])
 def api_scrape():
-    """API endpoint for REAL Google Maps scraping"""
+    """API endpoint for REAL Google Maps scraping with improved detection avoidance"""
     try:
         data = request.get_json()
         keywords = data.get('keywords', '').split(',')
@@ -239,7 +338,7 @@ def api_scrape():
         if location not in POSTCODES:
             return jsonify({"error": "Invalid postcode"}), 400
         
-        print(f"🚀 Starting REAL scraping for: {keywords} in {location}")
+        print(f"🚀 Starting IMPROVED scraping for: {keywords} in {location}")
         
         all_results = []
         for keyword in keywords:
@@ -249,13 +348,17 @@ def api_scrape():
                 results = scrape_google_maps(keyword, location)
                 all_results.extend(results)
                 print(f"   Found {len(results)} results for {keyword}")
+                
+                # Add delay between keywords to avoid rate limiting
+                if len(keywords) > 1:
+                    time.sleep(random.uniform(3, 6))
         
-        # Remove duplicates based on business name and phone
+        # Remove duplicates across all keywords
         seen_businesses = set()
         unique_results = []
         for result in all_results:
-            # Create unique identifier using name and phone
-            identifier = f"{result['name'].lower()}_{result.get('phone', '')}"
+            # Create unique identifier using name and location
+            identifier = f"{result['name'].lower().strip()}_{result.get('phone', '')}_{result['location']}"
             if identifier not in seen_businesses:
                 seen_businesses.add(identifier)
                 unique_results.append(result)
@@ -430,20 +533,21 @@ def health_check():
     return jsonify({
         "status": "healthy", 
         "timestamp": datetime.now().isoformat(),
-        "version": "production_v1.0",
-        "features": ["REAL_google_maps_scraping", "google_sheets_FIXED", "csv_export"],
+        "version": "production_v2.0_improved",
+        "features": ["IMPROVED_google_maps_scraping", "google_sheets_FIXED", "csv_export", "anti_detection"],
         "environment": "production"
     })
 
 if __name__ == '__main__':
-    print("🏆 Welling United FC Lead Scraper - PRODUCTION VERSION")
-    print("=" * 60)
+    print("🏆 Welling United FC Lead Scraper - IMPROVED PRODUCTION VERSION")
+    print("=" * 70)
     print("📍 Running on: Production Server")
-    print("🔥 Real Google Maps scraping: ACTIVE")
+    print("🔥 Improved Google Maps scraping: ACTIVE")
+    print("🛡️ Enhanced anti-detection: ACTIVE")
     print("✅ Google Sheets: FIXED AUTH")
     print("📊 CRM Upload: WORKING")
     print("📈 Status Check: WORKING")
-    print("=" * 60)
+    print("=" * 70)
     
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
