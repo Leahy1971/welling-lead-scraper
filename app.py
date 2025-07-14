@@ -22,7 +22,7 @@ POSTCODES = [
 ]
 
 def get_google_sheets_client():
-    """Initialize Google Sheets client with environment variables - FIXED"""
+    """Initialize Google Sheets client with environment variables - BASE64 APPROACH"""
     try:
         # Get credentials from environment variable
         credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
@@ -31,22 +31,41 @@ def get_google_sheets_client():
         
         print("🔑 Parsing Google credentials...")
         
-        # Parse JSON credentials with error handling
+        # Try base64 decode first (in case it's encoded)
         try:
-            credentials_dict = json.loads(credentials_json)
-        except json.JSONDecodeError as e:
-            print(f"❌ JSON parsing error: {e}")
-            raise Exception(f"Invalid JSON in GOOGLE_CREDENTIALS: {e}")
+            import base64
+            decoded_creds = base64.b64decode(credentials_json).decode('utf-8')
+            credentials_dict = json.loads(decoded_creds)
+            print("✅ Used base64 decoded credentials")
+        except:
+            # If not base64, try direct JSON parsing
+            try:
+                credentials_dict = json.loads(credentials_json)
+                print("✅ Used direct JSON credentials")
+            except json.JSONDecodeError as e:
+                print(f"❌ JSON parsing error: {e}")
+                raise Exception(f"Invalid JSON in GOOGLE_CREDENTIALS: {e}")
         
-        # Validate required fields
-        required_fields = ['type', 'project_id', 'private_key', 'client_email']
-        for field in required_fields:
-            if field not in credentials_dict:
-                raise Exception(f"Missing required field in credentials: {field}")
+        # Alternative: Use hardcoded credentials as fallback
+        if 'private_key' not in credentials_dict or not credentials_dict['private_key']:
+            print("⚠️ Using fallback credentials...")
+            credentials_dict = {
+                "type": "service_account",
+                "project_id": "welling-lead-scraper",
+                "private_key_id": "0091301c5f547f2a76def77ae41ef7c8cb746b87",
+                "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQD11yu1BZQjx9Wr\nqbllCgOgYRkoZYE1dyV+E4azBT2BA7XUipZqhVtDlfA247jFjqRmg01IKgbDeTXL\nGtV0ibStQoeXw/CUhki+S3yuaYBG52qzaQTY7Y2nXakuuKNJ9WBpyVBLAh97PRkz\nX9KQgLfhO6sHd3rQb4WYiPeWVFh26kB6gKenjI8w6/cpeZ6Vkk/NYZwSU4FTkN5t\nj4LZ27hGs5XN7bEWIlnFLOpdxRWrdvtOQ/n3t2E5AUJLE0gUcSSXtGAyxK2oao3i\n2sH2T4c3H9aoFxpjYfX2yyCX8R7JVPzeRrKeXp2iNCqHrlESmvwnoSOdm4DNc63k\n5Wi11m4rAgMBAAECggEAJf6Ol2LjVZxUM5GplioJYXIK7KleDMtQlL75JGsnlEGP\nNT1YqIyFDFmnTx8RYXGoNYe5cUZoK9xsf0AIbq28VMK2010fA3VgLLjcmNVeqUFU\nG6JGyNf9+o3eezAMsdN7MR5B4IsqyRB/opGpU1fxaJ1LfiiYZzpf0AaVwpAKlBCr\n6g3koya4hdO8I5UwxhLIbXWIVYvLNhyq7bZ6DAr2AWV+HEh+3Qz3O/K43rnt7zUs\ngytLtz4BgfaxFavX8+8iKlp/wDp0MW0Oi4cBXBU7cPFRGlXrFMTvRxDy60ASE2gS\nLoVXOP6kXaDFP7grTM95EeaHp1KFbsfcJRGI5Wf/wQKBgQD+zb+qnlEt8DXU1MKE\n/7N+3a21uI5BxI3VIAx3Xsqqrp5PttXjcumfkAwJp8QM23qHgPSCVS+H17QmJyl\nrhB5UkMIkcOQpfyu0KOxqsts3dT4P5BUuTPBkrfeQJyPEIQ/vIZHR6HVJESnZuxc\nMk+RRYJ4VWHVf9VHTD9I+pP2kQKBgQD2/qYprbyPJ6HhpQnkg2VXuRCk9Nadfn3I\nr9jyqf1Stb/M/92/yf10yp/Wb6A7zD1o7xSGsrXKAdq2iVfXol6PbnBC4pzP8PU+\ncYd/1JdxFmVsSv8cnAsFXOiHPDXyBTnO4GuAoOn5TJZasVgdFsAsWjgKFUzxczHq\nL+bCzCvO+wKBgEMoBUE50tmRuw5qOQ5tgOHXShWskxlGtNVibxs1bbX0I4u7NmJg\nG/G4ysAmHbxOYcTXvlgIX45whDPkVT0RoIPpW4ORr4KbTPriQJKeGlmKKgx37Fl4\nKpz1R4LLcrf+OWz3CkkVJyEfGv0oElnGZNQ8BsQidNOpipPtE6zvZjoRAoGATe9F\n8OrAD4+a1b8kovUO2iIr7VDQEzvhZpyN4OvgYeO1VHL7vlN25Q42ZwwrzBKC4gRm\nPqZPFCGHqIcnr4OtQKbBR2mHv1kxmPVrotsqueUuNYBohNd75sJNILbP8sDRX8SS\nRzD/Asm2u4Ev42XVV2lUO2JDOAB4JIPe1WJlBFcCgYAjyyc3AuxjrM0ItiRXjEr4\nWUenDdgw6naqaYwmXYqDU9NMaOJR0y/zxOwRrPwp0TmJ2Szp0iN0fSnSi5EsS/wf\nqNfe+NQmGAxAxJzEkaloMHVMfcliQxNMdvd3mmCu4V4XTHSdmtnJyEUoEo6yajYP\nHQZeFOIDzY0viuGabuM0kg==\n-----END PRIVATE KEY-----\n",
+                "client_email": "credentials-json-804@welling-lead-scraper.iam.gserviceaccount.com",
+                "client_id": "111924517280294017487",
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/credentials-json-804%40welling-lead-scraper.iam.gserviceaccount.com",
+                "universe_domain": "googleapis.com"
+            }
         
         print("✅ Credentials parsed successfully")
         
-        # Create credentials object with better error handling
+        # Create credentials object
         scopes = [
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive'
@@ -267,7 +286,7 @@ def generate_realistic_local_businesses(keyword, location):
             "name": business_name,
             "location": location,
             "address": address,
-            "link": f"https://www.google.com/maps/search/{business_name.replace(' ', '+').replace('-', '+')}/",
+            "link": f"https://www.google.com/maps/search/{address.replace(' ', '+').replace(',', '')}/",
             "phone": phone,
             "website": website,
             "reviews": reviews,
