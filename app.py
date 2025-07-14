@@ -1,16 +1,23 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import time
 import gspread
 from google.oauth2 import service_account
 import csv
 import os
+from urllib.parse import quote_plus
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import json
 import io
 import random
+import re
 
 app = Flask(__name__)
 CORS(app)
@@ -22,285 +29,271 @@ POSTCODES = [
 ]
 
 def get_google_sheets_client():
-    """Initialize Google Sheets client with environment variables - BASE64 APPROACH"""
+    """Initialize Google Sheets client with fallback credentials"""
     try:
-        # Get credentials from environment variable
-        credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
-        if not credentials_json:
-            raise Exception("GOOGLE_CREDENTIALS environment variable not set")
+        print("🔑 Setting up Google Sheets client...")
         
-        print("🔑 Parsing Google credentials...")
+        # Use hardcoded credentials (most reliable for deployment)
+        credentials_dict = {
+            "type": "service_account",
+            "project_id": "welling-lead-scraper",
+            "private_key_id": "0091301c5f547f2a76def77ae41ef7c8cb746b87",
+            "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQD11yu1BZQjx9Wr\nqbllCgOgYRkoZYE1dyV+E4azBT2BA7XUipZqhVtDlfA247jFjqRmg01IKgbDeTXL\nGtV0ibStQoeXw/CUhki+S3yuaYBG52qzaQTY7Y2nXakuuKNJ9WBpyVBLAh97PRkz\nX9KQgLfhO6sHd3rQb4WYiPeWVFh26kB6gKenjI8w6/cpeZ6Vkk/NYZwSU4FTkN5t\nj4LZ27hGs5XN7bEWIlnFLOpdxRWrdvtOQ/n3t2E5AUJLE0gUcSSXtGAyxK2oao3i\n2sH2T4c3H9aoFxpjYfX2yyCX8R7JVPzeRrKeXp2iNCqHrlESmvwnoSOdm4DNc63k\n5Wi11m4rAgMBAAECggEAJf6Ol2LjVZxUM5GplioJYXIK7KleDMtQlL75JGsnlEGP\nNT1YqIyFDFmnTx8RYXGoNYe5cUZoK9xsf0AIbq28VMK2010fA3VgLLjcmNVeqUFU\nG6JGyNf9+o3eezAMsdN7MR5B4IsqyRB/opGpU1fxaJ1LfiiYZzpf0AaVwpAKlBCr\n6g3koya4hdO8I5UwxhLIbXWIVYvLNhyq7bZ6DAr2AWV+HEh+3Qz3O/K43rnt7zUs\ngytLtz4BgfaxFavX8+8iKlp/wDp0MW0Oi4cBXBU7cPFRGlXrFMTvRxDy60ASE2gS\nLoVXOP6kXaDFP7grTM95EeaHp1KFbsfcJRGI5Wf/wQKBgQD+zb+qnlEt8DXU1MKE\n/7N+3a21uI5BxI3VIAx3Xsqqrp5PttXjcumfkAwJp8QM23qHgPSCVS+H17QmJyl\nrhB5UkMIkcOQpfyu0KOxqsts3dT4P5BUuTPBkrfeQJyPEIQ/vIZHR6HVJESnZuxc\nMk+RRYJ4VWHVf9VHTD9I+pP2kQKBgQD2/qYprbyPJ6HhpQnkg2VXuRCk9Nadfn3I\nr9jyqf1Stb/M/92/yf10yp/Wb6A7zD1o7xSGsrXKAdq2iVfXol6PbnBC4pzP8PU+\ncYd/1JdxFmVsSv8cnAsFXOiHPDXyBTnO4GuAoOn5TJZasVgdFsAsWjgKFUzxczHq\nL+bCzCvO+wKBgEMoBUE50tmRuw5qOQ5tgOHXShWskxlGtNVibxs1bbX0I4u7NmJg\nG/G4ysAmHbxOYcTXvlgIX45whDPkVT0RoIPpW4ORr4KbTPriQJKeGlmKKgx37Fl4\nKpz1R4LLcrf+OWz3CkkVJyEfGv0oElnGZNQ8BsQidNOpipPtE6zvZjoRAoGATe9F\n8OrAD4+a1b8kovUO2iIr7VDQEzvhZpyN4OvgYeO1VHL7vlN25Q42ZwwrzBKC4gRm\nPqZPFCGHqIcnr4OtQKbBR2mHv1kxmPVrotsqueUuNYBohNd75sJNILbP8sDRX8SS\nRzD/Asm2u4Ev42XVV2lUO2JDOAB4JIPe1WJlBFcCgYAjyyc3AuxjrM0ItiRXjEr4\nWUenDdgw6naqaYwmXYqDU9NMaOJR0y/zxOwRrPwp0TmJ2Szp0iN0fSnSi5EsS/wf\nqNfe+NQmGAxAxJzEkaloMHVMfcliQxNMdvd3mmCu4V4XTHSdmtnJyEUoEo6yajYP\nHQZeFOIDzY0viuGabuM0kg==\n-----END PRIVATE KEY-----\n",
+            "client_email": "credentials-json-804@welling-lead-scraper.iam.gserviceaccount.com",
+            "client_id": "111924517280294017487",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/credentials-json-804%40welling-lead-scraper.iam.gserviceaccount.com",
+            "universe_domain": "googleapis.com"
+        }
         
-        # Try base64 decode first (in case it's encoded)
-        try:
-            import base64
-            decoded_creds = base64.b64decode(credentials_json).decode('utf-8')
-            credentials_dict = json.loads(decoded_creds)
-            print("✅ Used base64 decoded credentials")
-        except:
-            # If not base64, try direct JSON parsing
-            try:
-                credentials_dict = json.loads(credentials_json)
-                print("✅ Used direct JSON credentials")
-            except json.JSONDecodeError as e:
-                print(f"❌ JSON parsing error: {e}")
-                raise Exception(f"Invalid JSON in GOOGLE_CREDENTIALS: {e}")
-        
-        # Alternative: Use hardcoded credentials as fallback
-        if 'private_key' not in credentials_dict or not credentials_dict['private_key']:
-            print("⚠️ Using fallback credentials...")
-            credentials_dict = {
-                "type": "service_account",
-                "project_id": "welling-lead-scraper",
-                "private_key_id": "0091301c5f547f2a76def77ae41ef7c8cb746b87",
-                "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQD11yu1BZQjx9Wr\nqbllCgOgYRkoZYE1dyV+E4azBT2BA7XUipZqhVtDlfA247jFjqRmg01IKgbDeTXL\nGtV0ibStQoeXw/CUhki+S3yuaYBG52qzaQTY7Y2nXakuuKNJ9WBpyVBLAh97PRkz\nX9KQgLfhO6sHd3rQb4WYiPeWVFh26kB6gKenjI8w6/cpeZ6Vkk/NYZwSU4FTkN5t\nj4LZ27hGs5XN7bEWIlnFLOpdxRWrdvtOQ/n3t2E5AUJLE0gUcSSXtGAyxK2oao3i\n2sH2T4c3H9aoFxpjYfX2yyCX8R7JVPzeRrKeXp2iNCqHrlESmvwnoSOdm4DNc63k\n5Wi11m4rAgMBAAECggEAJf6Ol2LjVZxUM5GplioJYXIK7KleDMtQlL75JGsnlEGP\nNT1YqIyFDFmnTx8RYXGoNYe5cUZoK9xsf0AIbq28VMK2010fA3VgLLjcmNVeqUFU\nG6JGyNf9+o3eezAMsdN7MR5B4IsqyRB/opGpU1fxaJ1LfiiYZzpf0AaVwpAKlBCr\n6g3koya4hdO8I5UwxhLIbXWIVYvLNhyq7bZ6DAr2AWV+HEh+3Qz3O/K43rnt7zUs\ngytLtz4BgfaxFavX8+8iKlp/wDp0MW0Oi4cBXBU7cPFRGlXrFMTvRxDy60ASE2gS\nLoVXOP6kXaDFP7grTM95EeaHp1KFbsfcJRGI5Wf/wQKBgQD+zb+qnlEt8DXU1MKE\n/7N+3a21uI5BxI3VIAx3Xsqqrp5PttXjcumfkAwJp8QM23qHgPSCVS+H17QmJyl\nrhB5UkMIkcOQpfyu0KOxqsts3dT4P5BUuTPBkrfeQJyPEIQ/vIZHR6HVJESnZuxc\nMk+RRYJ4VWHVf9VHTD9I+pP2kQKBgQD2/qYprbyPJ6HhpQnkg2VXuRCk9Nadfn3I\nr9jyqf1Stb/M/92/yf10yp/Wb6A7zD1o7xSGsrXKAdq2iVfXol6PbnBC4pzP8PU+\ncYd/1JdxFmVsSv8cnAsFXOiHPDXyBTnO4GuAoOn5TJZasVgdFsAsWjgKFUzxczHq\nL+bCzCvO+wKBgEMoBUE50tmRuw5qOQ5tgOHXShWskxlGtNVibxs1bbX0I4u7NmJg\nG/G4ysAmHbxOYcTXvlgIX45whDPkVT0RoIPpW4ORr4KbTPriQJKeGlmKKgx37Fl4\nKpz1R4LLcrf+OWz3CkkVJyEfGv0oElnGZNQ8BsQidNOpipPtE6zvZjoRAoGATe9F\n8OrAD4+a1b8kovUO2iIr7VDQEzvhZpyN4OvgYeO1VHL7vlN25Q42ZwwrzBKC4gRm\nPqZPFCGHqIcnr4OtQKbBR2mHv1kxmPVrotsqueUuNYBohNd75sJNILbP8sDRX8SS\nRzD/Asm2u4Ev42XVV2lUO2JDOAB4JIPe1WJlBFcCgYAjyyc3AuxjrM0ItiRXjEr4\nWUenDdgw6naqaYwmXYqDU9NMaOJR0y/zxOwRrPwp0TmJ2Szp0iN0fSnSi5EsS/wf\nqNfe+NQmGAxAxJzEkaloMHVMfcliQxNMdvd3mmCu4V4XTHSdmtnJyEUoEo6yajYP\nHQZeFOIDzY0viuGabuM0kg==\n-----END PRIVATE KEY-----\n",
-                "client_email": "credentials-json-804@welling-lead-scraper.iam.gserviceaccount.com",
-                "client_id": "111924517280294017487",
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/credentials-json-804%40welling-lead-scraper.iam.gserviceaccount.com",
-                "universe_domain": "googleapis.com"
-            }
-        
-        print("✅ Credentials parsed successfully")
-        
-        # Create credentials object
         scopes = [
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive'
         ]
         
-        try:
-            credentials = service_account.Credentials.from_service_account_info(
-                credentials_dict, 
-                scopes=scopes
-            )
-            client = gspread.authorize(credentials)
-            print("✅ Google Sheets client created successfully")
-            return client
-            
-        except Exception as e:
-            print(f"❌ Credential creation error: {e}")
-            raise Exception(f"Failed to create Google credentials: {e}")
+        credentials = service_account.Credentials.from_service_account_info(
+            credentials_dict, 
+            scopes=scopes
+        )
+        client = gspread.authorize(credentials)
+        print("✅ Google Sheets client ready")
+        return client
         
     except Exception as e:
         print(f"❌ Google Sheets client error: {e}")
         raise
 
-def search_alternative_sources(keyword, location):
-    """Search using alternative sources instead of Google Maps scraping"""
+def setup_chrome_driver():
+    """Setup Chrome driver optimized for scraping"""
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1280,720")
+    
+    # Anti-detection
+    options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    
+    # Performance optimization
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-plugins")
+    options.add_argument("--disable-images")
+    
+    try:
+        driver = webdriver.Chrome(options=options)
+        
+        # Execute script to hide webdriver property
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        
+        return driver
+    except Exception as e:
+        print(f"Error setting up Chrome driver: {e}")
+        raise
+
+def real_google_maps_scrape(keyword, location):
+    """REAL Google Maps scraping - like your desktop version"""
+    driver = None
     businesses = []
     
     try:
-        print(f"🔍 Searching alternative sources for: {keyword} in {location}")
+        print(f"🔍 REAL scraping: {keyword} in {location}")
         
-        # Method 1: Yelp-style search
+        driver = setup_chrome_driver()
+        
+        # Construct search URL like your desktop version
+        search_query = f"{keyword} in {location}"
+        search_url = f"https://www.google.com/maps/search/{quote_plus(search_query)}"
+        
+        print(f"📍 URL: {search_url}")
+        driver.get(search_url)
+        
+        # Wait for page to load
+        time.sleep(5)
+        
+        # Wait for results to appear
         try:
-            search_query = f"{keyword} {location} UK"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'a[href*="/maps/place/"]'))
+            )
+        except:
+            print("⚠️ No immediate results found, trying scroll...")
+        
+        # Scroll to load results like your desktop version
+        try:
+            scrollable_div = driver.find_element(By.XPATH, '//div[@role="feed"]')
+            print("📜 Scrolling to load more results...")
             
-            # Try Google Search (not Maps) for business listings
-            google_search_url = "https://www.google.com/search"
-            params = {
-                'q': search_query + " site:*.co.uk OR site:*.com",
-                'num': 10
-            }
-            
-            response = requests.get(google_search_url, headers=headers, params=params, timeout=10)
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.content, 'html.parser')
+            for scroll in range(12):  # Match your desktop version
+                driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_div)
+                time.sleep(1.2)  # Match your desktop timing
                 
-                # Look for business-like results
-                search_results = soup.find_all('div', class_='g')
-                
-                for result in search_results[:5]:  # Limit to first 5
-                    try:
-                        title_elem = result.find('h3')
-                        link_elem = result.find('a')
-                        
-                        if title_elem and link_elem:
-                            title = title_elem.get_text()
-                            link = link_elem.get('href')
-                            
-                            # Filter for business-looking results
-                            if any(business_indicator in title.lower() for business_indicator in 
-                                  ['ltd', 'limited', 'services', 'company', 'co.', keyword.lower()]):
-                                
-                                business = {
-                                    "name": title,
-                                    "location": location,
-                                    "address": f"{location} area",
-                                    "link": link,
-                                    "phone": "",
-                                    "website": link if 'http' in link else "",
-                                    "reviews": "",
-                                    "email": "",
-                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                }
-                                businesses.append(business)
-                                print(f"   ✅ Found: {title}")
-                                
-                    except Exception as e:
-                        continue
-                        
         except Exception as e:
-            print(f"   ⚠️ Google search failed: {e}")
+            print(f"⚠️ Scrolling failed: {e}")
         
-        # Method 2: Generate realistic local businesses if no results
-        if not businesses:
-            print(f"   🔄 Generating realistic local businesses...")
-            businesses = generate_realistic_local_businesses(keyword, location)
+        # Find business elements using the same selector as your desktop version
+        business_elements = driver.find_elements(By.CSS_SELECTOR, 'a.hfpxzc')
+        print(f"🏢 Found {len(business_elements)} business elements")
         
-        return businesses
+        if not business_elements:
+            print("⚠️ No business elements found, trying alternative selectors...")
+            business_elements = driver.find_elements(By.CSS_SELECTOR, 'a[href*="/maps/place/"]')
+            print(f"🏢 Alternative search found {len(business_elements)} elements")
+        
+        seen = set()
+        
+        # Process businesses like your desktop version
+        for elem in business_elements[:10]:  # Limit to 10 as requested
+            try:
+                name = elem.get_attribute("aria-label")
+                link = elem.get_attribute("href")
+                
+                if not name or not link or name in seen:
+                    continue
+                    
+                seen.add(name)
+                print(f"   🏢 Processing: {name}")
+                
+                # Click on business to get details (like your desktop version)
+                try:
+                    elem.click()
+                    time.sleep(2.5)  # Match your desktop timing
+                    
+                    # Initialize data
+                    phone = website = reviews = email = address = ""
+                    
+                    # Extract phone number (same logic as desktop)
+                    try:
+                        phone_elem = driver.find_element(By.XPATH, '//button[@data-tooltip="Copy phone number"]')
+                        phone = phone_elem.text
+                    except:
+                        try:
+                            phone_elem = driver.find_element(By.XPATH, '//button[@data-item-id="phone"]')
+                            phone = phone_elem.text
+                        except:
+                            pass
+                    
+                    # Extract website (same logic as desktop)
+                    try:
+                        website_elem = driver.find_element(By.XPATH, '//a[@data-tooltip="Open website"]')
+                        website = website_elem.get_attribute("href")
+                    except:
+                        try:
+                            website_elem = driver.find_element(By.XPATH, '//a[@data-item-id="authority"]')
+                            website = website_elem.get_attribute("href")
+                        except:
+                            pass
+                    
+                    # Extract reviews (same logic as desktop)
+                    try:
+                        reviews_elem = driver.find_element(By.CSS_SELECTOR, 'span[aria-label*=" reviews"]')
+                        reviews = reviews_elem.text
+                    except:
+                        pass
+                    
+                    # Extract address (same logic as desktop)
+                    try:
+                        address_elem = driver.find_element(By.XPATH, '//button[@data-item-id="address"]')
+                        address = address_elem.text
+                    except:
+                        pass
+                    
+                    # Extract email from website (same logic as desktop)
+                    if website:
+                        try:
+                            print(f"      🌐 Checking website for email: {website}")
+                            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                            r = requests.get(website, timeout=5, headers=headers)
+                            soup = BeautifulSoup(r.content, "html.parser")
+                            
+                            # Look for mailto links
+                            for a in soup.find_all('a', href=True):
+                                if 'mailto:' in a['href']:
+                                    email = a['href'].replace('mailto:', '')
+                                    break
+                            
+                            # Look for email patterns in text
+                            if not email:
+                                email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+                                emails = re.findall(email_pattern, r.text)
+                                if emails:
+                                    email = emails[0]
+                                    
+                        except Exception as e:
+                            print(f"      ⚠️ Email extraction failed: {e}")
+                    
+                    # Create business data exactly like your desktop version
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    business_data = {
+                        "name": name,
+                        "location": location,
+                        "address": address,
+                        "link": link,
+                        "phone": phone,
+                        "website": website,
+                        "reviews": reviews,
+                        "email": email,
+                        "timestamp": timestamp
+                    }
+                    
+                    businesses.append(business_data)
+                    print(f"      ✅ Added: {name} | {phone} | {website}")
+                    
+                except Exception as click_error:
+                    print(f"      ⚠️ Click failed for {name}: {click_error}")
+                    # Add basic info even if click fails
+                    businesses.append({
+                        "name": name,
+                        "location": location,
+                        "address": location + " area",
+                        "link": link,
+                        "phone": "",
+                        "website": "",
+                        "reviews": "",
+                        "email": "",
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    })
+                    
+            except Exception as e:
+                print(f"      ❌ Error processing business: {e}")
+                continue
+        
+        driver.quit()
+        
+        # Sort by reviews (highest first) as requested
+        businesses_with_reviews = []
+        businesses_without_reviews = []
+        
+        for business in businesses:
+            if business['reviews'] and '(' in business['reviews']:
+                try:
+                    rating = float(business['reviews'].split('(')[0])
+                    businesses_with_reviews.append((rating, business))
+                except:
+                    businesses_without_reviews.append(business)
+            else:
+                businesses_without_reviews.append(business)
+        
+        # Sort businesses with reviews by rating (highest first)
+        businesses_with_reviews.sort(key=lambda x: x[0], reverse=True)
+        sorted_businesses = [b[1] for b in businesses_with_reviews] + businesses_without_reviews
+        
+        print(f"🎉 REAL scraping complete! Found {len(sorted_businesses)} businesses")
+        return sorted_businesses
         
     except Exception as e:
-        print(f"❌ Alternative search failed: {e}")
-        return generate_realistic_local_businesses(keyword, location)
-
-def generate_realistic_local_businesses(keyword, location):
-    """Generate realistic business data based on real UK business patterns"""
-    
-    # Real business name patterns for different industries
-    business_patterns = {
-        'plumber': [
-            'Emergency Plumbing Services',
-            'Reliable Plumbers',
-            'Quick Fix Plumbing',
-            'Professional Plumbing Solutions',
-            'Local Plumbing Experts',
-            'Affordable Plumbers',
-            'Heating & Plumbing Services',
-            'Central Heating Specialists'
-        ],
-        'garage': [
-            'Auto Repair Centre',
-            'Motor Services',
-            'Car Maintenance Garage',
-            'Vehicle Repair Specialists',
-            'Main Street Motors',
-            'Quick Car Repairs',
-            'Automotive Services',
-            'Car Care Centre'
-        ],
-        'MOT': [
-            'MOT Testing Centre',
-            'Vehicle Testing Station',
-            'MOT & Service Centre',
-            'Approved MOT Station',
-            'Car Testing Services',
-            'MOT Test Centre',
-            'Vehicle Inspection Centre'
-        ],
-        'security': [
-            'Security Services',
-            'Protection Solutions',
-            'Guardian Security',
-            'Safe & Secure Ltd',
-            'Professional Security',
-            'Security Specialists',
-            'Protection Plus'
-        ],
-        'tyres': [
-            'Tyre Centre',
-            'Wheel & Tyre Services',
-            'Budget Tyres',
-            'Premium Tyre Fitting',
-            'Tyre Specialists',
-            'Quick Fit Tyres'
-        ]
-    }
-    
-    # Get appropriate patterns or create generic ones
-    patterns = business_patterns.get(keyword.lower(), [
-        f'{keyword.title()} Services',
-        f'Local {keyword.title()} Specialists',
-        f'Professional {keyword.title()}',
-        f'{keyword.title()} Solutions'
-    ])
-    
-    businesses = []
-    
-    # Generate realistic phone numbers for the area
-    area_codes = {
-        'DA1': ['01322', '020 8'],
-        'DA2': ['01322', '020 8'],
-        'DA3': ['01322', '020 8'],
-        'DA4': ['01322', '020 8'],
-        'DA5': ['020 8', '01322'],
-        'DA6': ['020 8', '01322'],
-        'DA7': ['020 8', '01322'],
-        'DA8': ['020 8', '01322'],
-        'DA9': ['01322', '020 8'],
-        'DA10': ['01322', '020 8'],
-        'DA11': ['01322', '020 8'],
-        'DA12': ['01322', '020 8'],
-        'DA13': ['01322', '020 8'],
-        'DA14': ['020 8', '01322'],
-        'DA15': ['020 8', '01322'],
-        'DA16': ['020 8', '01322'],
-        'DA17': ['020 8', '01322'],
-        'DA18': ['020 8', '01322']
-    }
-    
-    local_area_codes = area_codes.get(location, ['020 8', '01322'])
-    
-    for i, pattern in enumerate(patterns[:10]):  # Limit to 10 businesses
-        # Generate realistic phone number
-        area_code = local_area_codes[i % len(local_area_codes)]
-        
-        if area_code == '020 8':
-            phone = f"020 8{random.randint(100, 999)} {random.randint(1000, 9999)}"
-        else:
-            phone = f"01322 {random.randint(100000, 999999)}"
-        
-        # Generate business name with location
-        business_name = f"{pattern} - {location}"
-        
-        # Generate realistic website
-        clean_name = pattern.lower().replace(' ', '').replace('&', 'and')
-        website = f"https://www.{clean_name}{location.lower()}.co.uk"
-        
-        # Generate realistic email
-        email = f"info@{clean_name}{location.lower()}.co.uk"
-        
-        # Generate realistic address
-        street_names = [
-            'High Street', 'Main Road', 'Church Lane', 'Victoria Road',
-            'Station Road', 'Mill Lane', 'Park Avenue', 'Queens Road'
-        ]
-        
-        street = street_names[i % len(street_names)]
-        number = random.randint(1, 200)
-        address = f"{number} {street}, {location}"
-        
-        # Generate realistic reviews
-        rating = round(3.5 + random.uniform(0, 1.5), 1)
-        review_count = random.randint(8, 45)
-        reviews = f"{rating}({review_count})"
-        
-        business = {
-            "name": business_name,
-            "location": location,
-            "address": address,
-            "link": f"https://www.google.com/maps/search/{address.replace(' ', '+').replace(',', '')}/",
-            "phone": phone,
-            "website": website,
-            "reviews": reviews,
-            "email": email,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        
-        businesses.append(business)
-        print(f"   ✅ Generated: {business_name} | {phone}")
-    
-    # Sort by review rating (highest first)
-    businesses.sort(key=lambda x: float(x['reviews'].split('(')[0]), reverse=True)
-    
-    return businesses
+        print(f"❌ Real scraping error: {e}")
+        if driver:
+            try:
+                driver.quit()
+            except:
+                pass
+        return []
 
 @app.route('/')
 def serve_frontend():
@@ -309,7 +302,7 @@ def serve_frontend():
 
 @app.route('/api/scrape', methods=['POST'])
 def api_scrape():
-    """API endpoint for business search using alternative methods"""
+    """API endpoint for REAL Google Maps scraping"""
     try:
         data = request.get_json()
         keywords = data.get('keywords', '').split(',')
@@ -321,27 +314,28 @@ def api_scrape():
         if location not in POSTCODES:
             return jsonify({"error": "Invalid postcode"}), 400
         
-        print(f"🚀 Starting alternative search for: {keywords} in {location}")
+        print(f"🚀 Starting REAL Google Maps scraping for: {keywords} in {location}")
         
         all_results = []
         for keyword in keywords:
             keyword = keyword.strip()
             if keyword:
                 print(f"🔍 Processing keyword: {keyword}")
-                results = search_alternative_sources(keyword, location)
+                results = real_google_maps_scrape(keyword, location)
                 all_results.extend(results)
                 print(f"   Found {len(results)} results for {keyword}")
                 
-                # Small delay between keywords
-                time.sleep(1)
+                # Add delay between keywords
+                if len(keywords) > 1:
+                    time.sleep(3)
         
         # Remove duplicates
-        seen_names = set()
+        seen_businesses = set()
         unique_results = []
         for result in all_results:
-            name_key = result['name'].lower().strip()
-            if name_key not in seen_names:
-                seen_names.add(name_key)
+            identifier = f"{result['name'].lower().strip()}_{result.get('phone', '')}"
+            if identifier not in seen_businesses:
+                seen_businesses.add(identifier)
                 unique_results.append(result)
         
         print(f"🎯 Final result: {len(unique_results)} unique businesses")
@@ -350,11 +344,11 @@ def api_scrape():
             "success": True,
             "data": unique_results,
             "count": len(unique_results),
-            "message": f"Found {len(unique_results)} businesses using alternative search methods"
+            "message": f"Found {len(unique_results)} REAL businesses from Google Maps"
         })
         
     except Exception as e:
-        print(f"❌ API search error: {e}")
+        print(f"❌ API scraping error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/upload-crm', methods=['POST'])
@@ -369,9 +363,7 @@ def api_upload_crm():
         
         print(f"📊 Uploading {len(businesses)} businesses to CRM...")
         
-        sheet_url = os.environ.get('GOOGLE_SHEET_URL')
-        if not sheet_url:
-            return jsonify({"error": "Google Sheet URL not configured"}), 500
+        sheet_url = os.environ.get('GOOGLE_SHEET_URL', 'https://docs.google.com/spreadsheets/d/1qScGInFI_UD_2K5oUn42ximUt1s-hR-H7iLcpfDTsw0/edit')
         
         client = get_google_sheets_client()
         sheet = client.open_by_url(sheet_url).worksheet("CRM")
@@ -429,9 +421,7 @@ def api_crm_status():
     try:
         print("📊 Checking CRM status...")
         
-        sheet_url = os.environ.get('GOOGLE_SHEET_URL')
-        if not sheet_url:
-            return jsonify({"error": "Google Sheet URL not configured"}), 500
+        sheet_url = os.environ.get('GOOGLE_SHEET_URL', 'https://docs.google.com/spreadsheets/d/1qScGInFI_UD_2K5oUn42ximUt1s-hR-H7iLcpfDTsw0/edit')
         
         client = get_google_sheets_client()
         sheet = client.open_by_url(sheet_url).worksheet("CRM")
@@ -506,20 +496,20 @@ def health_check():
     return jsonify({
         "status": "healthy", 
         "timestamp": datetime.now().isoformat(),
-        "version": "alternative_v1.0",
-        "features": ["alternative_business_search", "no_selenium", "google_sheets_working"],
+        "version": "real_scraping_v1.0",
+        "features": ["REAL_google_maps_scraping", "google_sheets_working", "csv_export"],
         "environment": "production"
     })
 
 if __name__ == '__main__':
-    print("🏆 Welling United FC Lead Scraper - ALTERNATIVE VERSION")
-    print("=" * 60)
+    print("🏆 Welling United FC Lead Scraper - REAL SCRAPING VERSION")
+    print("=" * 70)
     print("📍 Running on: Production Server")
-    print("🔍 Alternative search methods: ACTIVE")
-    print("🚫 No Selenium/Chrome needed: ACTIVE")
+    print("🔥 REAL Google Maps scraping: ACTIVE")
+    print("📊 Same logic as desktop version: ACTIVE")
     print("✅ Google Sheets: WORKING")
-    print("💾 Memory efficient: ACTIVE")
-    print("=" * 60)
+    print("📈 Real business data: ACTIVE")
+    print("=" * 70)
     
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
