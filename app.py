@@ -198,7 +198,7 @@ def generate_realistic_local_businesses(keyword, location):
     
     local_area_codes = area_codes.get(location, ['020 8', '01322'])
     
-    for i, pattern in enumerate(patterns[:6]):  # Limit to 6 businesses
+    for i, pattern in enumerate(patterns[:10]):  # Limit to 10 businesses
         # Generate realistic phone number
         area_code = local_area_codes[i % len(local_area_codes)]
         
@@ -246,6 +246,9 @@ def generate_realistic_local_businesses(keyword, location):
         
         businesses.append(business)
         print(f"   ✅ Generated: {business_name} | {phone}")
+    
+    # Sort by review rating (highest first)
+    businesses.sort(key=lambda x: float(x['reviews'].split('(')[0]), reverse=True)
     
     return businesses
 
