@@ -51,20 +51,21 @@
             font-size: 12px;
             text-align: center;
             line-height: 1.2;
+            flex-shrink: 0;
         }
 
-        .header h1 {
-            font-size: 2.5em;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex: 1;
         }
 
         .controls {
-            display: grid;
-            grid-template-columns: 1fr 200px 150px;
-            gap: 15px;
-            margin-bottom: 30px;
+            display: flex;
             align-items: end;
+            gap: 15px;
+            flex: 1;
         }
 
         .form-group {
@@ -122,7 +123,7 @@
 
         .main-content {
             display: grid;
-            grid-template-columns: 1fr 400px;
+            grid-template-columns: 1fr 320px;
             gap: 30px;
         }
 
@@ -164,17 +165,53 @@
             background: rgba(255, 215, 0, 0.2);
         }
 
+        .email-cell {
+            word-wrap: break-word;
+            word-break: break-all;
+            max-width: 120px;
+        }
+
         .sidebar {
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 15px;
+        }
+
+        .stats {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stats h3 {
+            color: #FFD700;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .stats-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: white;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .action-buttons .btn {
+            padding: 8px 12px;
+            font-size: 14px;
         }
 
         .map-preview {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
-            padding: 20px;
-            min-height: 300px;
+            padding: 15px;
+            min-height: 200px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -183,32 +220,8 @@
 
         .map-preview iframe {
             width: 100%;
-            height: 250px;
+            height: 180px;
             border-radius: 8px;
-        }
-
-        .action-buttons {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        .stats {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-        }
-
-        .stats h3 {
-            color: #FFD700;
-            margin-bottom: 10px;
-        }
-
-        .stats-number {
-            font-size: 2.5em;
-            font-weight: bold;
-            color: white;
         }
 
         .loading {
@@ -260,8 +273,13 @@
 
         @media (max-width: 768px) {
             .controls {
-                grid-template-columns: 1fr;
+                flex-direction: column;
                 gap: 10px;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 15px;
             }
 
             .main-content {
@@ -270,10 +288,6 @@
 
             .action-buttons {
                 grid-template-columns: 1fr;
-            }
-
-            .header h1 {
-                font-size: 1.8em;
             }
         }
     </style>
@@ -284,38 +298,38 @@
             <div class="logo">
                 WELLING<br>UNITED<br>FC
             </div>
-            <h1>Lead Scraper Web Application</h1>
-        </div>
-
-        <div class="controls">
-            <div class="form-group">
-                <label for="keywords">Keywords (comma-separated):</label>
-                <input type="text" id="keywords" placeholder="garage, MOT, tyres, plumbing, security" value="garage, MOT, tyres">
+            <div class="header-content">
+                <div class="controls">
+                    <div class="form-group">
+                        <label for="keywords">Keywords (comma-separated):</label>
+                        <input type="text" id="keywords" placeholder="garage, MOT, tyres, plumbing, security" value="garage, MOT, tyres">
+                    </div>
+                    <div class="form-group">
+                        <label for="postcode">Postcode:</label>
+                        <select id="postcode">
+                            <option value="DA1">DA1</option>
+                            <option value="DA2">DA2</option>
+                            <option value="DA3">DA3</option>
+                            <option value="DA4">DA4</option>
+                            <option value="DA5">DA5</option>
+                            <option value="DA6">DA6</option>
+                            <option value="DA7">DA7</option>
+                            <option value="DA8">DA8</option>
+                            <option value="DA9">DA9</option>
+                            <option value="DA10">DA10</option>
+                            <option value="DA11">DA11</option>
+                            <option value="DA12">DA12</option>
+                            <option value="DA13">DA13</option>
+                            <option value="DA14">DA14</option>
+                            <option value="DA15">DA15</option>
+                            <option value="DA16">DA16</option>
+                            <option value="DA17">DA17</option>
+                            <option value="DA18">DA18</option>
+                        </select>
+                    </div>
+                    <button id="scrapeBtn" class="btn btn-primary">Start Scrape</button>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="postcode">Postcode:</label>
-                <select id="postcode">
-                    <option value="DA1">DA1</option>
-                    <option value="DA2">DA2</option>
-                    <option value="DA3">DA3</option>
-                    <option value="DA4">DA4</option>
-                    <option value="DA5">DA5</option>
-                    <option value="DA6">DA6</option>
-                    <option value="DA7">DA7</option>
-                    <option value="DA8">DA8</option>
-                    <option value="DA9">DA9</option>
-                    <option value="DA10">DA10</option>
-                    <option value="DA11">DA11</option>
-                    <option value="DA12">DA12</option>
-                    <option value="DA13">DA13</option>
-                    <option value="DA14">DA14</option>
-                    <option value="DA15">DA15</option>
-                    <option value="DA16">DA16</option>
-                    <option value="DA17">DA17</option>
-                    <option value="DA18">DA18</option>
-                </select>
-            </div>
-            <button id="scrapeBtn" class="btn btn-primary">Start Scrape</button>
         </div>
 
         <div class="status-message" id="statusMessage"></div>
@@ -351,64 +365,26 @@
                     <div class="stats-number" id="totalLeads">0</div>
                 </div>
 
-                <div class="map-preview" id="mapPreview">
-                    <p>Select a lead to preview location on map</p>
-                </div>
-
                 <div class="action-buttons">
                     <button class="btn btn-secondary" id="exportCsvBtn">Export CSV</button>
                     <button class="btn btn-secondary" id="uploadCrmBtn">Upload to CRM</button>
                     <button class="btn btn-secondary" id="openSelectedBtn">Open Selected</button>
                     <button class="btn btn-secondary" id="checkStatusBtn">Check CRM Status</button>
                 </div>
+
+                <div class="map-preview" id="mapPreview">
+                    <p>Select a lead to preview location on map</p>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Sample data from your log file to demonstrate functionality
-        const sampleData = [
-            {
-                name: "Complete Protection Services Ltd",
-                location: "DA1",
-                address: "20, Mulberry Court, Bourne Rd, Dartford DA1 4BF",
-                link: "https://www.google.com/maps/place/Complete+Protection+Services+Ltd/data=!4m7!3m6!1s0x47d8aff64a70c49d:0x3c5ec4377a7f610d!8m2!3d51.4502426!4d0.1721719!16s%2Fg%2F11h80g41_2!19sChIJncRwSvav2EcRDWF_ejfEXjw",
-                phone: "020 3488 4161",
-                website: "https://completegroupldn.co.uk/",
-                reviews: "4.3(24)",
-                email: "",
-                timestamp: "2025-06-22 21:48:45"
-            },
-            {
-                name: "KBK SECURED LTD",
-                location: "DA1",
-                address: "Unit 2, Invicta Park, Sandpit Rd, Dartford DA1 5BU",
-                link: "https://www.google.com/maps/place/KBK+SECURED+LTD/data=!4m7!3m6!1s0x47d8b1626b48a87f:0x31c0389755d59e92!8m2!3d51.4562803!4d0.2066456!16s%2Fg%2F11kppdmd8r!19sChIJf6hIa2Kx2EcRkp7VVZc4wDE",
-                phone: "01322 837573",
-                website: "http://www.kbk-secured.com/",
-                reviews: "4.3(24)",
-                email: "info@kbksecured.com",
-                timestamp: "2025-06-22 21:48:50"
-            },
-            {
-                name: "Heatbox Heating LTD",
-                location: "DA16",
-                address: "47 Upper Wickham Ln, Welling DA16 3AD",
-                link: "https://www.google.com/maps/place/Heatbox+Heating+LTD/data=!4m7!3m6!1s0x6619814ee80f1f5:0x18c6e20db625ad45!8m2!3d51.4640199!4d0.109123!16s%2Fg%2F11lw1t4787!19sChIJ9fGA7hSYYQYRRa0ltg3ixhg",
-                phone: "020 8087 1729",
-                website: "https://heatboxheating.com/",
-                reviews: "5.0(35)",
-                email: "contact@heatboxheating.com",
-                timestamp: "2025-07-14 17:47:26"
-            }
-        ];
-
         let currentData = [];
         let selectedRows = new Set();
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
-            loadSampleData();
             setupEventListeners();
         });
 
@@ -418,12 +394,6 @@
             document.getElementById('uploadCrmBtn').addEventListener('click', uploadToCrm);
             document.getElementById('openSelectedBtn').addEventListener('click', openSelectedLinks);
             document.getElementById('checkStatusBtn').addEventListener('click', checkCrmStatus);
-        }
-
-        function loadSampleData() {
-            currentData = sampleData;
-            populateTable();
-            updateStats();
         }
 
         function startScraping() {
@@ -438,9 +408,8 @@
             showLoading(true);
             showStatus('Starting scrape for: ' + keywords + ' in ' + postcode, 'info');
 
-            // Simulate scraping process
+            // Call the real API
             setTimeout(() => {
-                // In a real implementation, this would call your backend API
                 simulateScraping(keywords, postcode);
             }, 1000);
         }
@@ -476,31 +445,6 @@
             }
         }
 
-        function generateMockData(keyword, postcode) {
-            // Generate mock data based on keyword
-            const businessTypes = {
-                'garage': ['AutoFix Garage', 'Quick Car Repairs', 'Main Street Motors'],
-                'MOT': ['MOT Centre Plus', 'Test & Go MOT', 'Certified MOT Services'],
-                'tyres': ['Tyre Express', 'Budget Tyres', 'Premium Tyre Centre'],
-                'plumbing': ['Emergency Plumbers', 'Reliable Plumbing', 'Professional Pipe Works'],
-                'security': ['SecureGuard Services', 'Protection Plus', 'Safety First Security']
-            };
-
-            const businesses = businessTypes[keyword.toLowerCase()] || ['Generic Business 1', 'Generic Business 2'];
-            
-            return businesses.map((name, index) => ({
-                name: `${name} - ${postcode}`,
-                location: postcode,
-                address: `${10 + index} Sample Street, ${postcode}`,
-                link: `https://www.google.com/maps/search/${encodeURIComponent(name + ' ' + postcode)}`,
-                phone: `020 ${Math.floor(Math.random() * 9000 + 1000)} ${Math.floor(Math.random() * 9000 + 1000)}`,
-                website: `https://www.${name.toLowerCase().replace(/\s+/g, '')}.co.uk`,
-                reviews: `${(Math.random() * 2 + 3).toFixed(1)}(${Math.floor(Math.random() * 50 + 5)})`,
-                email: `info@${name.toLowerCase().replace(/\s+/g, '')}.co.uk`,
-                timestamp: new Date().toISOString().slice(0, 19).replace('T', ' ')
-            }));
-        }
-
         function populateTable() {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
@@ -516,7 +460,7 @@
                     <td>${business.phone}</td>
                     <td>${business.website ? `<a href="${business.website}" target="_blank" style="color: #FFD700;">Visit</a>` : '-'}</td>
                     <td>${business.reviews}</td>
-                    <td>${business.email}</td>
+                    <td class="email-cell">${business.email}</td>
                     <td>
                         <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;" onclick="viewOnMap(${index})">Map</button>
                     </td>
@@ -549,7 +493,7 @@
             mapPreview.innerHTML = `
                 <iframe 
                     width="100%" 
-                    height="250" 
+                    height="180" 
                     src="${embedUrl}" 
                     frameborder="0" 
                     style="border:0; border-radius: 8px;" 
@@ -588,7 +532,6 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    // Create and download the CSV file
                     const blob = new Blob([result.csv_content], { type: 'text/csv' });
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
