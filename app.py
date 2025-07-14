@@ -22,20 +22,51 @@ POSTCODES = [
 ]
 
 def get_google_sheets_client():
-    """Initialize Google Sheets client with environment variables"""
+    """Initialize Google Sheets client with environment variables - FIXED"""
     try:
+        # Get credentials from environment variable
         credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
         if not credentials_json:
             raise Exception("GOOGLE_CREDENTIALS environment variable not set")
         
-        credentials_dict = json.loads(credentials_json)
-        scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-        credentials = service_account.Credentials.from_service_account_info(credentials_dict, scopes=scopes)
-        client = gspread.authorize(credentials)
+        print("🔑 Parsing Google credentials...")
         
-        return client
+        # Parse JSON credentials with error handling
+        try:
+            credentials_dict = json.loads(credentials_json)
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON parsing error: {e}")
+            raise Exception(f"Invalid JSON in GOOGLE_CREDENTIALS: {e}")
+        
+        # Validate required fields
+        required_fields = ['type', 'project_id', 'private_key', 'client_email']
+        for field in required_fields:
+            if field not in credentials_dict:
+                raise Exception(f"Missing required field in credentials: {field}")
+        
+        print("✅ Credentials parsed successfully")
+        
+        # Create credentials object with better error handling
+        scopes = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
+        ]
+        
+        try:
+            credentials = service_account.Credentials.from_service_account_info(
+                credentials_dict, 
+                scopes=scopes
+            )
+            client = gspread.authorize(credentials)
+            print("✅ Google Sheets client created successfully")
+            return client
+            
+        except Exception as e:
+            print(f"❌ Credential creation error: {e}")
+            raise Exception(f"Failed to create Google credentials: {e}")
+        
     except Exception as e:
-        print(f"Google Sheets client error: {e}")
+        print(f"❌ Google Sheets client error: {e}")
         raise
 
 def search_alternative_sources(keyword, location):
