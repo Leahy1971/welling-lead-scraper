@@ -66,40 +66,97 @@ REAL_BUSINESS_DATA = {
 }
 
 def get_google_sheets_client():
-    """Initialize Google Sheets client"""
+    """Initialize Google Sheets client with robust error handling"""
     try:
         print("🔑 Setting up Google Sheets client...")
         
-        credentials_dict = {
-            "type": "service_account",
-            "project_id": "welling-lead-scraper",
-            "private_key_id": "0091301c5f547f2a76def77ae41ef7c8cb746b87",
-            "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQD11yu1BZQjx9Wr\nqbllCgOgYRkoZYE1dyV+E4azBT2BA7XUipZqhVtDlfA247jFjqRmg01IKgbDeTXL\nGtV0ibStQoeXw/CUhki+S3yuaYBG52qzaQTY7Y2nXakuuKNJ9WBpyVBLAh97PRkz\nX9KQgLfhO6sHd3rQb4WYiPeWVFh26kB6gKenjI8w6/cpeZ6Vkk/NYZwSU4FTkN5t\nj4LZ27hGs5XN7bEWIlnFLOpdxRWrdvtOQ/n3t2E5AUJLE0gUcSSXtGAyxK2oao3i\n2sH2T4c3H9aoFxpjYfX2yyCX8R7JVPzeRrKeXp2iNCqHrlESmvwnoSOdm4DNc63k\n5Wi11m4rAgMBAAECggEAJf6Ol2LjVZxUM5GplioJYXIK7KleDMtQlL75JGsnlEGP\nNT1YqIyFDFmnTx8RYXGoNYe5cUZoK9xsf0AIbq28VMK2010fA3VgLLjcmNVeqUFU\nG6JGyNf9+o3eezAMsdN7MR5B4IsqyRB/opGpU1fxaJ1LfiiYZzpf0AaVwpAKlBCr\n6g3koya4hdO8I5UwxhLIbXWIVYvLNhyq7bZ6DAr2AWV+HEh+3Qz3O/K43rnt7zUs\ngytLtz4BgfaxFavX8+8iKlp/wDp0MW0Oi4cBXBU7cPFRGlXrFMTvRxDy60ASE2gS\nLoVXOP6kXaDFP7grTM95EeaHp1KFbsfcJRGI5Wf/wQKBgQD+zb+qnlEt8DXU1MKE\n/7N+3a21uI5BxI3VIAx3Xsqqrp5PttXjcumfkAwJp8QM23qHgPSCVS+H17QmJyl\nrhB5UkMIkcOQpfyu0KOxqsts3dT4P5BUuTPBkrfeQJyPEIQ/vIZHR6HVJESnZuxc\nMk+RRYJ4VWHVf9VHTD9I+pP2kQKBgQD2/qYprbyPJ6HhpQnkg2VXuRCk9Nadfn3I\nr9jyqf1Stb/M/92/yf10yp/Wb6A7zD1o7xSGsrXKAdq2iVfXol6PbnBC4pzP8PU+\ncYd/1JdxFmVsSv8cnAsFXOiHPDXyBTnO4GuAoOn5TJZasVgdFsAsWjgKFUzxczHq\nL+bCzCvO+wKBgEMoBUE50tmRuw5qOQ5tgOHXShWskxlGtNVibxs1bbX0I4u7NmJg\nG/G4ysAmHbxOYcTXvlgIX45whDPkVT0RoIPpW4ORr4KbTPriQJKeGlmKKgx37Fl4\nKpz1R4LLcrf+OWz3CkkVJyEfGv0oElnGZNQ8BsQidNOpipPtE6zvZjoRAoGATe9F\n8OrAD4+a1b8kovUO2iIr7VDQEzvhZpyN4OvgYeO1VHL7vlN25Q42ZwwrzBKC4gRm\nPqZPFCGHqIcnr4OtQKbBR2mHv1kxmPVrotsqueUuNYBohNd75sJNILbP8sDRX8SS\nRzD/Asm2u4Ev42XVV2lUO2JDOAB4JIPe1WJlBFcCgYAjyyc3AuxjrM0ItiRXjEr4\nWUenDdgw6naqaYwmXYqDU9NMaOJR0y/zxOwRrPwp0TmJ2Szp0iN0fSnSi5EsS/wf\nqNfe+NQmGAxAxJzEkaloMHVMfcliQxNMdvd3mmCu4V4XTHSdmtnJyEUoEo6yajYP\nHQZeFOIDzY0viuGabuM0kg==\n-----END PRIVATE KEY-----\n",
-            "client_email": "credentials-json-804@welling-lead-scraper.iam.gserviceaccount.com",
-            "client_id": "111924517280294017487",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/credentials-json-804%40welling-lead-scraper.iam.gserviceaccount.com",
-            "universe_domain": "googleapis.com"
-        }
+        # Try environment variable first
+        credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
         
+        if credentials_json:
+            try:
+                credentials_dict = json.loads(credentials_json)
+                print("✅ Using environment credentials")
+            except Exception as e:
+                print(f"⚠️ Environment credentials failed: {e}")
+                credentials_dict = None
+        else:
+            credentials_dict = None
+        
+        # Fallback to working credentials with properly formatted private key
+        if not credentials_dict:
+            print("🔄 Using fallback credentials...")
+            
+            # Use a working private key format that doesn't have padding issues
+            private_key = """-----BEGIN PRIVATE KEY-----
+MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQD11yu1BZQjx9Wr
+qbllCgOgYRkoZYE1dyV+E4azBT2BA7XUipZqhVtDlfA247jFjqRmg01IKgbDeTXL
+GtV0ibStQoeXw/CUhki+S3yuaYBG52qzaQTY7Y2nXakuuKNJ9WBpyVBLAh97PRkz
+X9KQgLfhO6sHd3rQb4WYiPeWVFh26kB6gKenjI8w6/cpeZ6Vkk/NYZwSU4FTkN5t
+j4LZ27hGs5XN7bEWIlnFLOpdxRWrdvtOQ/n3t2E5AUJLE0gUcSSXtGAyxK2oao3i
+2sH2T4c3H9aoFxpjYfX2yyCX8R7JVPzeRrKeXp2iNCqHrlESmvwnoSOdm4DNc63k
+5Wi11m4rAgMBAAECggEAJf6Ol2LjVZxUM5GplioJYXIK7KleDMtQlL75JGsnlEGP
+NT1YqIyFDFmnTx8RYXGoNYe5cUZoK9xsf0AIbq28VMK2010fA3VgLLjcmNVeqUFU
+G6JGyNf9+o3eezAMsdN7MR5B4IsqyRB/opGpU1fxaJ1LfiiYZzpf0AaVwpAKlBCr
+6g3koya4hdO8I5UwxhLIbXWIVYvLNhyq7bZ6DAr2AWV+HEh+3Qz3O/K43rnt7zUs
+gytLtz4BgfaxFavX8+8iKlp/wDp0MW0Oi4cBXBU7cPFRGlXrFMTvRxDy60ASE2gS
+LoVXOP6kXaDFP7grTM95EeaHp1KFbsfcJRGI5Wf/wQKBgQD+zb+qnlEt8DXU1MKE
+n/7N+3a21uI5BxI3VIAx3Xsqqrp5PttXjcumfkAwJp8QM23qHgPSCVS+H17QmJyl
+rhB5UkMIkcOQpfyu0KOxqsts3dT4P5BUuTPBkrfeQJyPEIQ/vIZHR6HVJESnZuxc
+Mk+RRYJ4VWHVf9VHTD9I+pP2kQKBgQD2/qYprbyPJ6HhpQnkg2VXuRCk9Nadfn3I
+r9jyqf1Stb/M/92/yf10yp/Wb6A7zD1o7xSGsrXKAdq2iVfXol6PbnBC4pzP8PU+
+cYd/1JdxFmVsSv8cnAsFXOiHPDXyBTnO4GuAoOn5TJZasVgdFsAsWjgKFUzxczHq
+L+bCzCvO+wKBgEMoBUE50tmRuw5qOQ5tgOHXShWskxlGtNVibxs1bbX0I4u7NmJg
+G/G4ysAmHbxOYcTXvlgIX45whDPkVT0RoIPpW4ORr4KbTPriQJKeGlmKKgx37Fl4
+Kpz1R4LLcrf+OWz3CkkVJyEfGv0oElnGZNQ8BsQidNOpipPtE6zvZjoRAoGATe9F
+8OrAD4+a1b8kovUO2iIr7VDQEzvhZpyN4OvgYeO1VHL7vlN25Q42ZwwrzBKC4gRm
+PqZPFCGHqIcnr4OtQKbBR2mHv1kxmPVrotsqueUuNYBohNd75sJNILbP8sDRX8SS
+RzD/Asm2u4Ev42XVV2lUO2JDOAB4JIPe1WJlBFcCgYAjyyc3AuxjrM0ItiRXjEr4
+WUenDdgw6naqaYwmXYqDU9NMaOJR0y/zxOwRrPwp0TmJ2Szp0iN0fSnSi5EsS/wf
+qNfe+NQmGAxAxJzEkaloMHVMfcliQxNMdvd3mmCu4V4XTHSdmtnJyEUoEo6yajYP
+HQZeFOIDzY0viuGabuM0kg==
+-----END PRIVATE KEY-----"""
+            
+            credentials_dict = {
+                "type": "service_account",
+                "project_id": "welling-lead-scraper",
+                "private_key_id": "0091301c5f547f2a76def77ae41ef7c8cb746b87",
+                "private_key": private_key,
+                "client_email": "credentials-json-804@welling-lead-scraper.iam.gserviceaccount.com",
+                "client_id": "111924517280294017487",
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/credentials-json-804%40welling-lead-scraper.iam.gserviceaccount.com",
+                "universe_domain": "googleapis.com"
+            }
+        
+        # Create credentials
         scopes = [
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive'
         ]
         
-        credentials = service_account.Credentials.from_service_account_info(
-            credentials_dict, 
-            scopes=scopes
-        )
-        client = gspread.authorize(credentials)
-        print("✅ Google Sheets client ready")
-        return client
+        try:
+            credentials = service_account.Credentials.from_service_account_info(
+                credentials_dict, 
+                scopes=scopes
+            )
+            client = gspread.authorize(credentials)
+            
+            # Test the connection
+            test_sheet_url = 'https://docs.google.com/spreadsheets/d/1qScGInFI_UD_2K5oUn42ximUt1s-hR-H7iLcpfDTsw0/edit'
+            test_sheet = client.open_by_url(test_sheet_url)
+            print(f"✅ Google Sheets client ready - Connected to: {test_sheet.title}")
+            return client
+            
+        except Exception as cred_error:
+            print(f"❌ Credential creation failed: {cred_error}")
+            raise Exception(f"Failed to create Google Sheets client: {cred_error}")
         
     except Exception as e:
         print(f"❌ Google Sheets client error: {e}")
-        raise
+        raise Exception(f"Google Sheets setup failed: {e}")
 
 def get_real_businesses_by_keyword_and_location(keyword, location):
     """Get real businesses based on keyword and adapt them to location"""
